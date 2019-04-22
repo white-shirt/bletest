@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script type="text/javascript" src="cordova.js"></script>
+  <title>BLETest</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    
+    body, html {
+      width: 100%;
+      height: 100%;
+      font-size: 14px;
+    }
+
+    #msg {
+      width: 100%;
+      height: 85%;
+      overflow: scroll;
+    }
+
+    #btn {
+      position: fixed;
+      display: flex;
+      justify-content:center;
+      align-items:center;
+      width: 100%;
+      height: 15%;
+      text-align: center;
+      line-height: 15%;
+      bottom: 0;
+      left: 0;
+      background: rgb(124, 141, 89);
+    }
+  </style>
+</head>
+<body>
+  <div id="msg"></div>
+  <div id="btn">点击此处搜索机器人</div>
+  <script>
+    var ble_uuid = {
+      serviceUUID: "0000ae00-0000-1000-8000-00805f9b34fb",
+      characteristic_uuid: "0000ae01-0000-1000-8000-00805f9b34fb",
+      rxcharacteristic_uuid: "0000ae02-0000-1000-8000-00805f9b34fb"
+    }
+    var deviceArr = [];
+    var tempid;
+    var msg = document.getElementById('msg'); 
+
+    var app = {
+      //初始化
+      init: function () {
+        document.addEventListener("deviceready", app.scan, false);
+        msg.innerHTML += "初始化成功,将手机靠近机器人左脚处。" + "<br>"
+      },
+      //开始搜索
+      scan: function () {
+        ble.stopScan(function () {
+          if (tempid) {
+            ble.isConnected(tempid, function () {
+              app.disconnect(tempid)
+            }, function () {})
+          }
+          ble.isEnabled(function () {
+            ble.scan([], 4, function (device) {
+              msg.innerHTML += "正在搜索设备" + "<br>";
+              if (device.name == 'AIeggy_Code' && Math.abs(device.rssi) < 50) {
+                msg.innerHTML += "搜索到设备" + device.id + "<br>";
+                app.stop(device.id);
+                tempid = device.id;
+              }
+            }, function () {})
+          }, function () {
+            msg.innerHTML += "打开手机蓝牙和地理位置定位服务" + "<br>";
+          })
+        }, function () {
+          msg.innerHTML += "停止搜索失败" + "<br>";
+        });
+        msg.scrollTop = msg.scrollHeight;
+      },
+      //停止搜索
+      stop: function (id) {
+        ble.stopScan(function () {
+          msg.innerHTML += "正在连接设备.." + "<br>"
+          app.connect(id)
+        }, function () {})
+      },
+      //连接
+      connect: function (id) {
+        ble.connect(id, function () {
+          msg.innerHTML += "连接成功" + "<br>";
+          app.send(id)
+        }, function () {
+          msg.innerHTML += "连接失败" + "<br>";
+        })
+        msg.scrollTop = msg.scrollHeight;
+      },
+      //断开连接
+      disconnect: function (id) {
+        ble.disconnect(id, function () {
+
+        }, function () {
+
+        })
+      },
+      Tobuffer: function (head, cmdtype, data1, data2, end) {
+        var buffer = new ArrayBuffer(5);
+        var dataView = new DataView(buffer);
+        dataView.setInt8(0, head);
+        dataView.setInt8(1, cmdtype);
+        dataView.setInt8(2, data1);
+        dataView.setInt8(3, data2);
+        dataView.setInt8(4, end);
+        return buffer;
+      },
+      send: function (id) {
+        var order = app.Tobuffer(60, 1, 60, -60, 62);
+        ble.writeWithoutResponse(id, ble_uuid.serviceUUID, ble_uuid.characteristic_uuid, order, function () {
+          msg.innerHTML += "1.机器旋转 2.手动关机" + "<br>";
+          msg.scrollTop = msg.scrollHeight;
+        }, function () {
+          msg.innerHTML += "命令发送失败,请尝试重新连接" + "<br>";
+        })
+      }
+    }
+    app.init()
+    document.getElementById("btn").addEventListener("click", function () {
+      app.scan();
+    }, false)
+    document.addEventListener("backbutton", function () {
+      //进入后台
+      navigator.Backbutton.goHome(function() {
+        console.log('go home success');
+      }, function() {
+        console.log('go home fail');
+      });
+    }, false)
+  </script>
+</body>
+</html>
